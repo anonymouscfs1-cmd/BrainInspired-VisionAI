@@ -4,7 +4,7 @@ import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
-
+import os  # voor map creatie
 
 # ── Class names ──────────────────────────────────────────────────────────────
 CIFAR10_CLASSES = [
@@ -12,7 +12,6 @@ CIFAR10_CLASSES = [
     "dog", "frog", "horse", "ship", "truck"
 ]
 MNIST_CLASSES = [str(i) for i in range(10)]
-
 
 # ── Transforms ───────────────────────────────────────────────────────────────
 def get_transforms(dataset: str = "cifar10", augment: bool = True):
@@ -40,7 +39,6 @@ def get_transforms(dataset: str = "cifar10", augment: bool = True):
     val_tf   = transforms.Compose(base)
     return train_tf, val_tf
 
-
 # ── Loaders ───────────────────────────────────────────────────────────────────
 def get_loaders(
     dataset: str = "cifar10",
@@ -51,16 +49,6 @@ def get_loaders(
 ):
     """
     Downloads (if needed) and returns (train_loader, val_loader, class_names).
-
-    Args:
-        dataset:     'cifar10' or 'mnist'
-        data_dir:    where to store the raw data
-        batch_size:  mini-batch size
-        num_workers: parallel data-loading workers (set 0 on Windows)
-        augment:     apply random augmentation to training set
-
-    Returns:
-        train_loader, val_loader, class_names
     """
     train_tf, val_tf = get_transforms(dataset, augment)
 
@@ -84,7 +72,6 @@ def get_loaders(
 
     return train_loader, val_loader, class_names
 
-
 # ── Sanity-check visualisation ────────────────────────────────────────────────
 def show_batch(loader, class_names, n: int = 16, save_path: str = None):
     """
@@ -105,7 +92,7 @@ def show_batch(loader, class_names, n: int = 16, save_path: str = None):
     axes = np.array(axes).flatten()
 
     for ax, img, lbl in zip(axes, imgs_np, labels.tolist()):
-        if img.shape[-1] == 1:                  # MNIST grayscale
+        if img.shape[-1] == 1:  # MNIST grayscale
             ax.imshow(img.squeeze(), cmap="gray")
         else:
             ax.imshow(img)
@@ -117,11 +104,14 @@ def show_batch(loader, class_names, n: int = 16, save_path: str = None):
 
     plt.suptitle("Sample training batch (augmented)", fontsize=10)
     plt.tight_layout()
+
     if save_path:
+        # Zorg dat de map bestaat
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
         print(f"[dataset_loader] Batch preview saved → {save_path}")
-    plt.show()
 
+    plt.show()
 
 # ── Quick test ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
