@@ -1,0 +1,129 @@
+import torch
+from torch.utils.data import DataLoader
+import torchvision
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+# ── Class names ──────────────────────────────────────────────────────────────
+CIFAR10_CLASSES = [
+    "airplane", "automobile", "bird", "cat", "deer",
+    "dog", "frog", "horse", "ship", "truck"
+]
+MNIST_CLASSES = [str(i) for i in range(10)]
+
+
+# ── Transforms ───────────────────────────────────────────────────────────────
+def get_transforms(dataset: str = "cifar10", augment: bool = True):
+    """
+    Returns (train_transform, val_transform) for the given dataset.
+    Augmentation is only applied to the training transform.
+    """
+    if dataset == "cifar10":
+        mean = (0.4914, 0.4822, 0.4465)
+        std  = (0.2470, 0.2435, 0.2616)
+        base = [transforms.ToTensor(), transforms.Normalize(mean, std)]
+        aug  = [
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(32, padding=4),
+        ]
+    elif dataset == "mnist":
+        mean = (0.1307,)
+        std  = (0.3081,)
+        base = [transforms.ToTensor(), transforms.Normalize(mean, std)]
+        aug  = [transforms.RandomRotation(10)]
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}. Choose 'cifar10' or 'mnist'.")
+
+    train_tf = transforms.Compose((aug + base) if augment else base)
+    val_tf   = transforms.Compose(base)
+    return train_tf, val_tf
+
+
+# ── Loaders ───────────────────────────────────────────────────────────────────
+def get_loaders(
+    dataset: str = "cifar10",
+    data_dir: str = "./data",
+    batch_size: int = 128,
+    num_workers: int = 2,
+    augment: bool = True,
+):
+    """
+    Downloads (if needed) and returns (train_loader, val_loader, class_names).
+
+    Args:
+        dataset:     'cifar10' or 'mnist'
+        data_dir:    where to store the raw data
+        batch_size:  mini-batch size
+        num_workers: parallel data-loading workers (set 0 on Windows)
+        augment:     apply random augmentation to training set
+
+    Returns:
+        train_loader, val_loader, class_names
+    """
+    train_tf, val_tf = get_transforms(dataset, augment)
+
+    if dataset == "cifar10":
+        train_ds = torchvision.datasets.CIFAR10(data_dir, train=True,  download=True, transform=train_tf)
+        val_ds   = torchvision.datasets.CIFAR10(data_dir, train=False, download=True, transform=val_tf)
+        class_names = CIFAR10_CLASSES
+    else:
+        train_ds = torchvision.datasets.MNIST(data_dir, train=True,  download=True, transform=train_tf)
+        val_ds   = torchvision.datasets.MNIST(data_dir, train=False, download=True, transform=val_tf)
+        class_names = MNIST_CLASSES
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True)
+    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False,
+                              num_workers=num_workers, pin_memory=True)
+
+    print(f"[dataset_loader] {dataset.upper()}: "
+          f"{len(train_ds)} train / {len(val_ds)} val — "
+          f"batch {batch_size}, {len(train_loader)} train batches")
+
+    return train_loader, val_loader, class_names
+
+
+# ── Sanity-check visualisation ────────────────────────────────────────────────
+def show_batch(loader, class_names, n: int = 16, save_path: str = None):
+    """
+    Display a random batch of n images with their class labels.
+    Call this after get_loaders() to verify the pipeline before training.
+    """
+    images, labels = next(iter(loader))
+    images = images[:n]
+    labels = labels[:n]
+
+    # Un-normalise for display: clamp to [0, 1]
+    imgs_np = images.permute(0, 2, 3, 1).numpy()
+    imgs_np = (imgs_np - imgs_np.min()) / (imgs_np.max() - imgs_np.min() + 1e-5)
+
+    cols = min(n, 8)
+    rows = (n + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 1.8, rows * 1.8))
+    axes = np.array(axes).flatten()
+
+    for ax, img, lbl in zip(axes, imgs_np, labels.tolist()):
+        if img.shape[-1] == 1:                  # MNIST grayscale
+            ax.imshow(img.squeeze(), cmap="gray")
+        else:
+            ax.imshow(img)
+        ax.set_title(class_names[lbl], fontsize=8)
+        ax.axis("off")
+
+    for ax in axes[n:]:
+        ax.axis("off")
+
+    plt.suptitle("Sample training batch (augmented)", fontsize=10)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"[dataset_loader] Batch preview saved → {save_path}")
+    plt.show()
+
+
+# ── Quick test ────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    train_loader, val_loader, class_names = get_loaders("cifar10", batch_size=64)
+    show_batch(train_loader, class_names, n=16, save_path="results/sample_batch.png")
